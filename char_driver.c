@@ -24,6 +24,10 @@ typedef struct virtual_device {
 	struct file_operations* fops;
 	//This has the effect of allowig other processes to use the device now
 	struct semaphore sem;
+	//The device-driver class struct pointer
+	struct class* devClass;
+	//The device-driver device struct pointer
+	struct device* devPtr;
 }Device;
 
 static Device chrDevice;
@@ -42,6 +46,35 @@ static int __init cdriver_init(void) {
 		//Return the major number for error checking purposes
 		return chrDevice.majorNumber;
 	}
+
+	//Create the device class
+	chrDevice.devClass = class_create(THIS_MODULE, CLASS_NAME);
+	//If there is an error creating the class
+	if(IS_ERR(chrDevice.devClass)) {
+		//Unregister the device
+		unregister_chrdev(chrDevice.majorNumber, DEVICE_NAME);
+		//Print the error to the kernel log
+		printk(KERN_ALERT "Failed to register cdriver class\n");
+		//Return the error code
+		return PTR_ERR(chrDevice.devClass);
+	}
+
+	//Register the device driver
+	chrDevice.devPtr = device_create(chrDevice.devClass, NULL, MKDEV(chrDevice.majorNumber, 0), NULL, DEVICE_NAME);
+	//If there is an error creating the device
+	if(IS_ERR(chrDevice.devPtr)) {
+		//Destroy the class
+		class_destroy(chrDevice.devClass);
+		//Unregister the device
+		unregister_chrdev(chrDevice.majorNumber, DEVICE_NAME);
+		//Print the error to the kernel log
+		printk(KERN_ALERT "Failed to create the cdriver device\n");
+		//Return the error code
+		return PTR_ERR(chrDevice.devPtr);
+	}
+
+	//Print success for driver creation
+	printk(KERN_INFO "cdriver successfully initialized\n");
 	
 	return 0;
 }
@@ -56,12 +89,14 @@ static int dev_open(struct inode* inodep, struct file* filep) {
 }
 
 static ssize_t dev_read(struct file* filep, char* buffer, size_t len, loff_t* offset) {
-	//TODO: Implement
+	
+
+	int errCount = copy_to_user(buffer, chrDevice.data, chrDevice.msgSize);
 	return 0;
 }
 
 static int dev_release(struct inode* inodep, struct file* filep) {
-	//TODO: Implement
+	printk(KERN_INFO "Releasing cdriver\n");
 	return 0;
 }
 
