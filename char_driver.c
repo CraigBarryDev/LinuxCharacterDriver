@@ -20,8 +20,6 @@ typedef struct virtual_device {
 	int majorNumber;
 	//The size of the currently stored data
 	int msgSize;
-	//Stores the file operations associated with this device
-	struct file_operations* fops;
 	//This has the effect of allowig other processes to use the device now
 	struct semaphore sem;
 	//The device-driver class struct pointer
@@ -30,13 +28,30 @@ typedef struct virtual_device {
 	struct device* devPtr;
 }Device;
 
+static int device_open(struct inode* inodep, struct file* filep);
+static int device_release(struct inode* inodep, struct file* filep);
+static ssize_t device_read(struct file* filep, char* buffer, size_t len, loff_t* offset);
+static ssize_t device_write(struct file* fp, const char* buffer, size_t len, loff_t* offset);	
+
+//Stores the file operations associated with this device
+static struct file_operations fops =
+{
+	.open = device_open,
+	.read = device_read,
+	.write = device_write,
+	.release = device_release,
+};
+
+
 static Device chrDevice;
 
 static int __init cdriver_init(void) {
 	printk(KERN_INFO "Initializing cdriver\n");
 
 	//Register the character device and return it's major number
-	chrDevice.majorNumber = register_chrdev(0, DEVICE_NAME, chrDevice.fops);
+	chrDevice.majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
+
+	printk(KERN_INFO "Driver Number Initialized <%d>\n", chrDevice.majorNumber);
 
 	//If the initialization failed
 	if(chrDevice.majorNumber < 0) {
@@ -79,27 +94,54 @@ static int __init cdriver_init(void) {
 	return 0;
 }
 
-static void __exit hello_exit(void) {
+static void __exit cdriver_exit(void) {
+	device_destroy(chrDevice.devClass, MKDEV(chrDevice.majorNumber, 0));
+	class_unregister(chrDevice.devClass);
+	class_destroy(chrDevice.devClass);
+	unregister_chrdev(chrDevice.majorNumber, DEVICE_NAME);
 	printk(KERN_INFO "Kernel Module Unloaded\n");
 }
 
-static int dev_open(struct inode* inodep, struct file* filep) {
-	//TODO: Implement
+static int device_open(struct inode* inodep, struct file* filep) {
+	printk(KERN_INFO "cdriver openned\n");
 	return 0;
 }
 
-static ssize_t dev_read(struct file* filep, char* buffer, size_t len, loff_t* offset) {
+static ssize_t device_read(struct file* filep, char* buffer, size_t len, loff_t* offset) {
 	
+	//Copy read data to the buffer
+	int err = !copy_to_user(buffer, chrDevice.data, chrDevice.msgSize);
+	
+	//If an error occured
+	if(err) {
+		//Report that an error has occured
+		printk(KERN_INFO "Failed to send characters\n");
+		//Return the fault address (negative to indicate its an error)
+		return -EFAULT;
+	}
 
-	int errCount = copy_to_user(buffer, chrDevice.data, chrDevice.msgSize);
+	//Print that characters were sent to the user
+	printk(KERN_INFO "Sent characters to user\n");
+	//Reset the size of the message
+	chrDevice.msgSize = 0;
+	//Return 0 on success
 	return 0;
 }
 
-static int dev_release(struct inode* inodep, struct file* filep) {
+static ssize_t device_write(struct file* fp, const char* buffer, size_t len, loff_t* offset) {
+	//Store the size of the message
+	chrDevice.msgSize = strlen(buffer);
+	//Print that a message was received
+	printk(KERN_INFO "A message has been received from the user <%s>\n", buffer);
+	//Return the length of the message
+	return len;
+}
+
+static int device_release(struct inode* inodep, struct file* filep) {
 	printk(KERN_INFO "Releasing cdriver\n");
 	return 0;
 }
 
 
 module_init(cdriver_init);
-module_exit(hello_exit);
+module_exit(cdriver_exit);

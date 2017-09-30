@@ -3,6 +3,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 
 #define BUFFER_LEN 256
 
@@ -10,15 +11,14 @@ int main() {
 	char sendMsg[BUFFER_LEN];
 	char receiveMsg[BUFFER_LEN];
 
-	printf("Device is about to be openned\n");
+	printf("Attempting to open device\n");
 
 	//Attempt to open the device
 	int device = open("/dev/char_driver", O_RDWR);
 
-	printf("Device openning finished\n");
-
-	if(!device) {
-		printf("Device could not be openned\n");
+	if(device < 0) {
+		int err = errno;
+		printf("Device could not be openned <%d>\n", err);	
 		return -1;
 	}
 
