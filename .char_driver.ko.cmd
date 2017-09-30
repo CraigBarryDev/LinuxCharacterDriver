@@ -1,0 +1,1 @@
+cmd_/home/craig/osp_assignment/char_driver.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/craig/osp_assignment/char_driver.ko /home/craig/osp_assignment/char_driver.o /home/craig/osp_assignment/char_driver.mod.o
