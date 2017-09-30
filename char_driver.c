@@ -3,6 +3,7 @@
 #include <linux/device.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
+#include <linux/mutex.h>
 #include <asm/uaccess.h>
 
 #define DEVICE_NAME "char_driver"
@@ -21,7 +22,7 @@ typedef struct virtual_device {
 	//The size of the currently stored data
 	int msgSize;
 	//This has the effect of allowig other processes to use the device now
-	struct semaphore sem;
+	struct mutex sem;
 	//The device-driver class struct pointer
 	struct class* devClass;
 	//The device-driver device struct pointer
@@ -47,6 +48,9 @@ static Device chrDevice;
 
 static int __init cdriver_init(void) {
 	printk(KERN_INFO "Initializing cdriver\n");
+
+	//Initialize the semaphore to a mutex lock
+	mutex_init(&chrDevice.sem);
 
 	//Register the character device and return it's major number
 	chrDevice.majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
@@ -95,6 +99,9 @@ static int __init cdriver_init(void) {
 }
 
 static void __exit cdriver_exit(void) {
+	//Destroy the mutex lock as it is no longer required
+	mutex_destroy(&chrDevice.sem);
+
 	device_destroy(chrDevice.devClass, MKDEV(chrDevice.majorNumber, 0));
 	class_unregister(chrDevice.devClass);
 	class_destroy(chrDevice.devClass);
@@ -103,6 +110,8 @@ static void __exit cdriver_exit(void) {
 }
 
 static int device_open(struct inode* inodep, struct file* filep) {
+	//Lock the mutex to only allow one process to access device at one time
+	mutex_lock(&chrDevice.sem);
 	printk(KERN_INFO "cdriver openned\n");
 	return 0;
 }
@@ -131,6 +140,8 @@ static ssize_t device_read(struct file* filep, char* buffer, size_t len, loff_t*
 static ssize_t device_write(struct file* fp, const char* buffer, size_t len, loff_t* offset) {
 	//Store the size of the message
 	chrDevice.msgSize = strlen(buffer);
+	//Store the message in the buffer
+	sprintf(chrDevice.data, "%s", buffer);
 	//Print that a message was received
 	printk(KERN_INFO "A message has been received from the user <%s>\n", buffer);
 	//Return the length of the message
@@ -138,6 +149,8 @@ static ssize_t device_write(struct file* fp, const char* buffer, size_t len, lof
 }
 
 static int device_release(struct inode* inodep, struct file* filep) {
+	//Release the mutex lock to allow other processes to use the device
+	mutex_unlock(&chrDevice.sem);	
 	printk(KERN_INFO "Releasing cdriver\n");
 	return 0;
 }
