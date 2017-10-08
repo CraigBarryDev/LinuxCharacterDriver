@@ -47,6 +47,7 @@ static struct file_operations fops =
 static Device chrDevice;
 
 static int __init cdriver_init(void) {
+	//Print that driver initialization is starting
 	printk(KERN_INFO "Initializing cdriver\n");
 
 	//Initialize the semaphore to a mutex lock
@@ -54,8 +55,6 @@ static int __init cdriver_init(void) {
 
 	//Register the character device and return it's major number
 	chrDevice.majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
-
-	printk(KERN_INFO "Driver Number Initialized <%d>\n", chrDevice.majorNumber);
 
 	//If the initialization failed
 	if(chrDevice.majorNumber < 0) {
@@ -94,6 +93,8 @@ static int __init cdriver_init(void) {
 
 	//Print success for driver creation
 	printk(KERN_INFO "cdriver successfully initialized\n");
+
+	printk(KERN_INFO "Major Number %d\n", chrDevice.majorNumber);
 	
 	return 0;
 }
@@ -102,17 +103,21 @@ static void __exit cdriver_exit(void) {
 	//Destroy the mutex lock as it is no longer required
 	mutex_destroy(&chrDevice.sem);
 
+	//Cleanup allocated memory
 	device_destroy(chrDevice.devClass, MKDEV(chrDevice.majorNumber, 0));
 	class_unregister(chrDevice.devClass);
 	class_destroy(chrDevice.devClass);
 	unregister_chrdev(chrDevice.majorNumber, DEVICE_NAME);
+	//Print that driver is being unloaded
 	printk(KERN_INFO "Kernel Module Unloaded\n");
 }
 
 static int device_open(struct inode* inodep, struct file* filep) {
 	//Lock the mutex to only allow one process to access device at one time
 	mutex_lock(&chrDevice.sem);
+	//Print that the driver has been openned
 	printk(KERN_INFO "cdriver openned\n");
+	//Return 0 on success
 	return 0;
 }
 
@@ -155,6 +160,6 @@ static int device_release(struct inode* inodep, struct file* filep) {
 	return 0;
 }
 
-
+//Initialize functions as module init and exit functions
 module_init(cdriver_init);
 module_exit(cdriver_exit);

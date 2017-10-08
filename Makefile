@@ -1,15 +1,24 @@
-obj-m += char_driver.o
-
 KERNEL_SOURCE:=/lib/modules/$(shell uname -r)/build
-DRIVER:=char_driver
 DRIVER_TESTER:=driver_tester
 TESTER_BIN:=tester
 
+DRIVER:=char_driver
+obj-m += char_driver.o
+
+#DRIVER:=keyboard_driver
+#obj-m += keyboard_driver.o
+
+#DRIVER:=keyboard_usb_driver
+#obj-m += keyboard_usb_driver.o
+
 all:
-	make -C $(KERNEL_SOURCE) M=$(PWD) modules
+	make compile
 	make unload
 	make load
 	make driver_test
+
+compile:
+	make -C $(KERNEL_SOURCE) M=$(PWD) modules
 
 driver_test:
 	gcc -c $(DRIVER_TESTER).c -o $(DRIVER_TESTER).o
